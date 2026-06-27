@@ -13,6 +13,18 @@ export function getRecentLocalDateKeys(now = new Date(), days = 7): string[] {
   });
 }
 
+export function getLocalDateKeysForWeekOffset(now = new Date(), weekOffset = 0, days = 7): string[] {
+  const safeOffset = Number.isInteger(weekOffset) && weekOffset > 0 ? weekOffset : 0;
+  const anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  anchor.setDate(anchor.getDate() - safeOffset * days);
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(anchor);
+    date.setDate(anchor.getDate() - (days - 1 - index));
+    return getLocalDateKey(date);
+  });
+}
+
 export function epochSecondsToIso(seconds: number | null | undefined): string | null {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) {
     return null;

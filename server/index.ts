@@ -3,21 +3,32 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dashboardService } from "./data/dashboardService.js";
+import type { DashboardRequest, DashboardResponse, DebugResponse } from "./data/types.js";
 import { sanitizeMessage } from "./utils/sanitize.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(__dirname, "../client");
 
-type DashboardHttpService = Pick<typeof dashboardService, "getDashboard" | "getDebug">;
+type DashboardHttpService = {
+  getDashboard: (options?: DashboardRequest) => Promise<DashboardResponse>;
+  getDebug: () => DebugResponse;
+};
+
+function parseWeekOffset(value: unknown): number {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : 0;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
 
 export function createApp(service: DashboardHttpService = dashboardService) {
   const app = express();
 
   app.use(express.json());
 
-  app.get("/api/dashboard", async (_req, res) => {
+  app.get("/api/dashboard", async (req, res) => {
     try {
-      res.json(await service.getDashboard());
+      res.json(await service.getDashboard({ weekOffset: parseWeekOffset(req.query.weekOffset) }));
     } catch (error) {
       res.status(500).json({ message: sanitizeMessage(error) });
     }

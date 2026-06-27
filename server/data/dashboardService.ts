@@ -1,11 +1,17 @@
 import { readCcusageDaily } from "./ccusage.js";
 import { readCodexRateLimits } from "./codexAppServer.js";
 import { DebugStore, debugStore } from "./debugStore.js";
-import { type CcusageReport, type CodexRateLimitReport, type DashboardResponse, type DebugResponse } from "./types.js";
+import {
+  type CcusageReport,
+  type CodexRateLimitReport,
+  type DashboardRequest,
+  type DashboardResponse,
+  type DebugResponse
+} from "./types.js";
 import { sanitizeMessage } from "../utils/sanitize.js";
 
 type DashboardServiceDeps = {
-  ccusageReader?: () => Promise<CcusageReport>;
+  ccusageReader?: (options?: DashboardRequest) => Promise<CcusageReport>;
   codexReader?: () => Promise<CodexRateLimitReport>;
   store?: DebugStore;
   now?: () => Date;
@@ -25,9 +31,13 @@ export function createDashboardService(deps: DashboardServiceDeps = {}) {
   const store = deps.store ?? debugStore;
   const now = deps.now ?? (() => new Date());
 
-  async function getDashboard(): Promise<DashboardResponse> {
+  async function getDashboard(options: DashboardRequest = {}): Promise<DashboardResponse> {
     const generatedAt = now().toISOString();
-    const [ccusageResult, codexResult] = await Promise.allSettled([runReader(ccusageReader), runReader(codexReader)]);
+    const weekOffset = Number.isInteger(options.weekOffset) && (options.weekOffset ?? 0) > 0 ? options.weekOffset : 0;
+    const [ccusageResult, codexResult] = await Promise.allSettled([
+      runReader(() => ccusageReader({ weekOffset })),
+      runReader(codexReader)
+    ]);
     const ccusageOk = ccusageResult.status === "fulfilled";
     const codexOk = codexResult.status === "fulfilled";
 

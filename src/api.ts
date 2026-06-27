@@ -80,8 +80,9 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function fetchDashboard(): Promise<DashboardResponse> {
-  return fetchJson<DashboardResponse>("/api/dashboard");
+export function fetchDashboard(weekOffset = 0): Promise<DashboardResponse> {
+  const url = weekOffset > 0 ? `/api/dashboard?weekOffset=${encodeURIComponent(String(weekOffset))}` : "/api/dashboard";
+  return fetchJson<DashboardResponse>(url);
 }
 
 export function fetchDebug(): Promise<DebugResponse> {

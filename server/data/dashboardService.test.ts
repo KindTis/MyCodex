@@ -37,7 +37,7 @@ const codexReport: CodexRateLimitReport = {
 };
 
 function service(
-  ccusageReader: () => Promise<CcusageReport>,
+  ccusageReader: (options?: { weekOffset?: number }) => Promise<CcusageReport>,
   codexReader: () => Promise<CodexRateLimitReport>,
   store = new DebugStore()
 ) {
@@ -112,5 +112,14 @@ describe("dashboardService", () => {
     expect(debug.errors).toHaveLength(1);
     expect(JSON.stringify(debug)).not.toContain("abcd12345678");
     expect(debug.ccusage.summary.rows).toBe(1);
+  });
+
+  it("요청한 weekOffset을 ccusage reader에 전달한다", async () => {
+    const ccusageReader = vi.fn(() => Promise.resolve(ccusageReport));
+    const dashboard = service(ccusageReader, () => Promise.resolve(codexReport));
+
+    await dashboard.getDashboard({ weekOffset: 2 });
+
+    expect(ccusageReader).toHaveBeenCalledWith({ weekOffset: 2 });
   });
 });

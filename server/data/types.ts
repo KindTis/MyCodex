@@ -88,6 +88,10 @@ export type CcusageReport = {
   summary: CcusageSummary;
 };
 
+export type DashboardRequest = {
+  weekOffset?: number;
+};
+
 export type CodexRateLimitReport = {
   limits: LimitBucket[];
   summary: CodexAppServerSummary;

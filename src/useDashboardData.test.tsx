@@ -48,6 +48,14 @@ describe("useDashboardData", () => {
     expect(result.current.data).toEqual(dashboard);
   });
 
+  it("weekOffset이 있으면 해당 7일 구간을 조회한다", async () => {
+    mockFetch();
+    renderHook(() => useDashboardData(2));
+
+    expect(fetch).toHaveBeenCalledWith("/api/dashboard?weekOffset=2");
+    await flushPromises();
+  });
+
   it("60초 뒤 자동 갱신한다", async () => {
     mockFetch();
     renderHook(() => useDashboardData());

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LimitMeter } from "../components/LimitMeter";
 import { MetricCard } from "../components/MetricCard";
 import { SourceStatusPanel } from "../components/SourceStatusPanel";
@@ -14,11 +15,14 @@ const formatCost = (value: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value);
 
 export function DashboardPage() {
-  const { data, loading, refreshing, errorMessage, nextRefreshInSeconds, refresh } = useDashboardData();
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [trendMetric, setTrendMetric] = useState<"tokens" | "cost">("tokens");
+  const { data, loading, refreshing, errorMessage, nextRefreshInSeconds, refresh } = useDashboardData(weekOffset);
   const ccusageUnavailable = Boolean(data && !data.sources.ccusage.ok);
   const limitsUnavailable = Boolean(data && !data.sources.codexAppServer.ok);
   const codexBucket = data?.limits.find((bucket) => bucket.id === "codex") ?? data?.limits[0] ?? null;
   const extraBuckets = data?.limits.filter((bucket) => bucket.id !== codexBucket?.id) ?? [];
+  const rangeLabel = weekOffset === 0 ? "최근 7일" : `${weekOffset}주 전`;
 
   if (!data && loading) {
     return <main className="panel loading-panel">데이터를 불러오는 중입니다.</main>;
@@ -87,10 +91,47 @@ export function DashboardPage() {
 
       <section className="panel">
         <div className="section-heading">
-          <h2>최근 7일 추이</h2>
+          <div>
+            <h2>사용량 추이</h2>
+            <p className="muted">{rangeLabel} 기준 7일 단위</p>
+          </div>
           {ccusageUnavailable ? <p className="error-text">ccusage 값을 사용할 수 없습니다.</p> : null}
         </div>
-        <TrendChart points={data.trend} unavailable={ccusageUnavailable} />
+        <div className="trend-toolbar">
+          <div className="segmented-control" aria-label="추이 지표 선택">
+            <button
+              type="button"
+              className={trendMetric === "tokens" ? "is-active" : ""}
+              onClick={() => setTrendMetric("tokens")}
+            >
+              토큰
+            </button>
+            <button
+              type="button"
+              className={trendMetric === "cost" ? "is-active" : ""}
+              onClick={() => setTrendMetric("cost")}
+            >
+              비용
+            </button>
+          </div>
+          <div className="week-navigation" aria-label="7일 구간 이동">
+            <button type="button" aria-label="이전 7일" onClick={() => setWeekOffset((value) => value + 1)}>
+              이전 7일
+            </button>
+            <button type="button" aria-label="최근 7일" onClick={() => setWeekOffset(0)} disabled={weekOffset === 0}>
+              최근 7일
+            </button>
+            <button
+              type="button"
+              aria-label="다음 7일"
+              onClick={() => setWeekOffset((value) => Math.max(0, value - 1))}
+              disabled={weekOffset === 0}
+            >
+              다음 7일
+            </button>
+          </div>
+        </div>
+        <TrendChart points={data.trend} unavailable={ccusageUnavailable} metric={trendMetric} rangeLabel={rangeLabel} />
       </section>
 
       <div className="source-grid">

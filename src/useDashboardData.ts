@@ -3,7 +3,7 @@ import { DashboardResponse, fetchDashboard } from "./api";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
-export function useDashboardData() {
+export function useDashboardData(weekOffset = 0) {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,7 +27,7 @@ export function useDashboardData() {
     }
 
     try {
-      const nextData = await fetchDashboard();
+      const nextData = await fetchDashboard(weekOffset);
       dataRef.current = nextData;
       setData(nextData);
     } catch (error) {
@@ -39,7 +39,7 @@ export function useDashboardData() {
       setRefreshing(false);
       inFlight.current = false;
     }
-  }, []);
+  }, [weekOffset]);
 
   useEffect(() => {
     void refresh();

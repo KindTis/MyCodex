@@ -53,6 +53,34 @@ describe("parseCcusageDaily", () => {
     expect(report.summary.todayMatched).toBe(false);
   });
 
+  it("weekOffset으로 이전 7일 구간 추이를 만든다", () => {
+    const report = parseCcusageDaily(
+      {
+        daily: [
+          { date: "2026-06-06", totalTokens: 100, totalCost: 0.01 },
+          { date: "2026-06-09", totalTokens: 200, totalCost: 0.02 },
+          { date: "2026-06-12", totalTokens: 300, totalCost: 0.03 },
+          { date: "2026-06-26", totalTokens: 999, totalCost: 0.99 }
+        ]
+      },
+      now,
+      { weekOffset: 2 }
+    );
+
+    expect(report.trend.map((point) => point.date)).toEqual([
+      "2026-06-06",
+      "2026-06-07",
+      "2026-06-08",
+      "2026-06-09",
+      "2026-06-10",
+      "2026-06-11",
+      "2026-06-12"
+    ]);
+    expect(report.trend[0]).toEqual({ date: "2026-06-06", tokens: 100, costUsd: 0.01 });
+    expect(report.trend[3]).toEqual({ date: "2026-06-09", tokens: 200, costUsd: 0.02 });
+    expect(report.summary.sevenDayTokens).toBe(600);
+  });
+
   it("필수 필드가 잘못되면 실패한다", () => {
     expect(() =>
       parseCcusageDaily({ daily: [{ date: "2026-06-26", totalCost: 0.1 }] }, now)

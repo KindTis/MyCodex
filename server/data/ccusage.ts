@@ -1,6 +1,6 @@
 import path from "node:path";
-import { getLocalDateKey, getRecentLocalDateKeys } from "./date.js";
-import type { CcusageCostField, CcusageReport, TrendPoint } from "./types.js";
+import { getLocalDateKey, getLocalDateKeysForWeekOffset } from "./date.js";
+import type { CcusageCostField, CcusageReport, DashboardRequest, TrendPoint } from "./types.js";
 import { parseJsonStdout, runProcess } from "../utils/process.js";
 
 type RawCcusageRow = Record<string, unknown>;
@@ -75,7 +75,7 @@ function normalizeRow(row: RawCcusageRow, costField: CcusageCostField): TrendPoi
   };
 }
 
-export function parseCcusageDaily(payload: unknown, now = new Date()): CcusageReport {
+export function parseCcusageDaily(payload: unknown, now = new Date(), options: DashboardRequest = {}): CcusageReport {
   const rows = getRows(payload);
   const costField = detectCostField(rows);
   const normalized = new Map<string, TrendPoint>();
@@ -89,7 +89,7 @@ export function parseCcusageDaily(payload: unknown, now = new Date()): CcusageRe
     normalized.set(point.date, point);
   }
 
-  const dateKeys = getRecentLocalDateKeys(now, 7);
+  const dateKeys = getLocalDateKeysForWeekOffset(now, options.weekOffset ?? 0, 7);
   const trend = dateKeys.map((date) => normalized.get(date) ?? { date, tokens: 0, costUsd: 0 });
   const todayKey = getLocalDateKey(now);
   const today = normalized.get(todayKey) ?? { date: todayKey, tokens: 0, costUsd: 0 };
@@ -114,7 +114,7 @@ export function getCcusageProcessSpec(cwd = process.cwd(), nodePath = process.ex
   };
 }
 
-export async function readCcusageDaily(): Promise<CcusageReport> {
+export async function readCcusageDaily(options: DashboardRequest = {}): Promise<CcusageReport> {
   const spec = getCcusageProcessSpec();
   const result = await runProcess(spec.command, spec.args, { timeoutMs: 20_000 });
 
@@ -122,5 +122,5 @@ export async function readCcusageDaily(): Promise<CcusageReport> {
     throw new Error(result.stderr || `ccusage가 종료 코드 ${result.exitCode}로 실패했습니다.`);
   }
 
-  return parseCcusageDaily(parseJsonStdout(result.stdout));
+  return parseCcusageDaily(parseJsonStdout(result.stdout), new Date(), options);
 }

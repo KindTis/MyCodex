@@ -77,6 +77,40 @@ describe("Express API", () => {
     );
   });
 
+  it("GET /api/dashboard가 weekOffset query를 서비스에 전달한다", async () => {
+    const getDashboard = vi.fn(() => Promise.resolve(dashboard));
+
+    await withServer(
+      {
+        getDashboard,
+        getDebug: () => debug
+      },
+      async (url) => {
+        const response = await fetch(`${url}/api/dashboard?weekOffset=2`);
+
+        expect(response.ok).toBe(true);
+        expect(getDashboard).toHaveBeenCalledWith({ weekOffset: 2 });
+      }
+    );
+  });
+
+  it("잘못된 weekOffset query는 0으로 처리한다", async () => {
+    const getDashboard = vi.fn(() => Promise.resolve(dashboard));
+
+    await withServer(
+      {
+        getDashboard,
+        getDebug: () => debug
+      },
+      async (url) => {
+        const response = await fetch(`${url}/api/dashboard?weekOffset=-1`);
+
+        expect(response.ok).toBe(true);
+        expect(getDashboard).toHaveBeenCalledWith({ weekOffset: 0 });
+      }
+    );
+  });
+
   it("GET /api/debug가 원본 JSON 없이 요약을 반환한다", async () => {
     await withServer(
       {
