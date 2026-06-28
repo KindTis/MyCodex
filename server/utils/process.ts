@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 
 export type ProcessResult = {
   stdout: string;
@@ -10,7 +11,24 @@ export type RunProcessOptions = {
   cwd?: string;
   timeoutMs?: number;
   input?: string;
+  onChild?: (child: ChildProcess) => void;
 };
+
+export type NodeCommandOptions = {
+  isElectronRuntime?: boolean;
+  npmNodeExecPath?: string;
+};
+
+export function resolveNodeCommand(nodePath = process.execPath, options: NodeCommandOptions = {}): string {
+  const isElectronRuntime =
+    options.isElectronRuntime ?? Boolean((process.versions as NodeJS.ProcessVersions & { electron?: string }).electron);
+
+  if (!isElectronRuntime) {
+    return nodePath;
+  }
+
+  return options.npmNodeExecPath || "node";
+}
 
 export function runProcess(
   command: string,
@@ -25,6 +43,7 @@ export function runProcess(
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
     });
+    options.onChild?.(child);
 
     let stdout = "";
     let stderr = "";

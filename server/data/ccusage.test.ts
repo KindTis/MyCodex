@@ -86,6 +86,51 @@ describe("parseCcusageDaily", () => {
       parseCcusageDaily({ daily: [{ date: "2026-06-26", totalCost: 0.1 }] }, now)
     ).toThrow("totalTokens");
   });
+
+  it("오늘이 아닌 row라도 date가 잘못되면 실패한다", () => {
+    expect(() =>
+      parseCcusageDaily({ daily: [{ date: "2026-6-25", totalTokens: 1, totalCost: 0.1 }] }, now)
+    ).toThrow("date");
+    expect(() =>
+      parseCcusageDaily({ daily: [{ date: "2026-02-30", totalTokens: 1, totalCost: 0.1 }] }, now)
+    ).toThrow("date");
+  });
+
+  it.each([null, "1", Number.NaN, Infinity, -1])("totalTokens가 %s이면 실패한다", (totalTokens) => {
+    expect(() =>
+      parseCcusageDaily({ daily: [{ date: "2026-06-26", totalTokens, totalCost: 0.1 }] }, now)
+    ).toThrow("totalTokens");
+  });
+
+  it.each([null, "0.1", Number.NaN, Infinity, -0.1])("선택된 비용 필드가 %s이면 실패한다", (totalCost) => {
+    expect(() =>
+      parseCcusageDaily({ daily: [{ date: "2026-06-26", totalTokens: 1, totalCost }] }, now)
+    ).toThrow("비용");
+  });
+
+  it("totalCost가 하나라도 있으면 응답 단위 비용 필드로 totalCost를 요구한다", () => {
+    expect(() =>
+      parseCcusageDaily(
+        {
+          daily: [
+            { date: "2026-06-25", totalTokens: 1, costUSD: 0.1 },
+            { date: "2026-06-26", totalTokens: 2, totalCost: 0.2 }
+          ]
+        },
+        now
+      )
+    ).toThrow("비용");
+  });
+
+  it("오늘 row가 없고 나머지 row가 정상인 경우만 today를 0으로 정규화한다", () => {
+    const report = parseCcusageDaily(
+      { daily: [{ date: "2026-06-25", totalTokens: 10, totalCost: 0.1 }] },
+      now
+    );
+
+    expect(report.today).toEqual({ date: "2026-06-26", tokens: 0, costUsd: 0 });
+    expect(report.summary.todayMatched).toBe(false);
+  });
 });
 
 describe("getCcusageProcessSpec", () => {
@@ -95,5 +140,19 @@ describe("getCcusageProcessSpec", () => {
     expect(spec.command).toBe("C:\\node\\node.exe");
     expect(spec.args[0]).toBe("C:\\work\\app\\node_modules\\ccusage\\src\\cli.js");
     expect(spec.args.slice(1)).toEqual(["codex", "daily", "--json"]);
+  });
+
+  it("Electron 런타임에서는 electron.exe 대신 node로 ccusage CLI를 실행한다", () => {
+    const spec = getCcusageProcessSpec("C:\\work\\app", "C:\\Electron\\electron.exe", { isElectronRuntime: true });
+
+    expect(spec.command).toBe("node");
+    expect(spec.args[0]).toBe("C:\\work\\app\\node_modules\\ccusage\\src\\cli.js");
+    expect(spec.args.slice(1)).toEqual(["codex", "daily", "--json"]);
+  });
+
+  it("packaged 앱에서는 주입된 앱 루트에서 ccusage CLI를 찾는다", () => {
+    const spec = getCcusageProcessSpec("C:\\packed\\resources\\app", "C:\\node\\node.exe");
+
+    expect(spec.args[0]).toBe("C:\\packed\\resources\\app\\node_modules\\ccusage\\src\\cli.js");
   });
 });

@@ -1,5 +1,5 @@
-import { createDashboardService } from "./dashboardService.js";
-import { DebugStore } from "./debugStore.js";
+import { createDashboardService, dashboardService } from "./dashboardService.js";
+import { DebugStore, debugStore } from "./debugStore.js";
 import type { CcusageReport, CodexRateLimitReport } from "./types.js";
 
 const at = new Date("2026-06-26T00:00:00.000Z");
@@ -121,5 +121,39 @@ describe("dashboardService", () => {
     await dashboard.getDashboard({ weekOffset: 2 });
 
     expect(ccusageReader).toHaveBeenCalledWith({ weekOffset: 2 });
+  });
+
+  it("generatedAt은 두 reader가 settle된 뒤 생성한다", async () => {
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(new Date("2026-06-26T00:00:00.000Z"))
+      .mockReturnValueOnce(new Date("2026-06-26T00:00:10.000Z"));
+    const app = createDashboardService({
+      ccusageReader: () => Promise.resolve(ccusageReport),
+      codexReader: () => Promise.resolve(codexReport),
+      store: new DebugStore(),
+      now
+    });
+
+    const dashboard = await app.getDashboard();
+
+    expect(dashboard.generatedAt).toBe("2026-06-26T00:00:00.000Z");
+    expect(now).toHaveBeenCalledTimes(1);
+  });
+
+  it("isolated DebugStore를 주입한 service 호출은 전역 debugStore를 오염시키지 않는다", async () => {
+    debugStore.clearForTests();
+    const isolatedStore = new DebugStore();
+    const electronLikeService = service(
+      () => Promise.resolve(ccusageReport),
+      () => Promise.reject(new Error("electron only failure")),
+      isolatedStore
+    );
+
+    await electronLikeService.getDashboard();
+
+    expect(electronLikeService.getDebug().errors).toHaveLength(1);
+    expect(dashboardService.getDebug().errors).toEqual([]);
+    debugStore.clearForTests();
   });
 });

@@ -40,11 +40,84 @@ describe("parseCodexRateLimits", () => {
       parseCodexRateLimits({
         rateLimits: {
           limitId: "codex",
-          primary: { usedPercent: "bad" },
-          secondary: { usedPercent: 1 }
+          primary: { usedPercent: "bad", windowDurationMins: 300 },
+          secondary: { usedPercent: 1, windowDurationMins: 10080 }
         }
       })
     ).toThrow("usedPercent");
+  });
+
+  it("대표 bucket의 음수 usedPercent를 실패로 처리한다", () => {
+    expect(() =>
+      parseCodexRateLimits({
+        rateLimits: {
+          limitId: "codex",
+          primary: { usedPercent: -1, windowDurationMins: 300 },
+          secondary: { usedPercent: 1, windowDurationMins: 10080 }
+        }
+      })
+    ).toThrow("usedPercent");
+  });
+
+  it("대표 bucket의 duration 불일치를 실패로 처리한다", () => {
+    expect(() =>
+      parseCodexRateLimits({
+        rateLimits: {
+          limitId: "codex",
+          primary: { usedPercent: 1, windowDurationMins: 301 },
+          secondary: { usedPercent: 1, windowDurationMins: 10080 }
+        }
+      })
+    ).toThrow("windowDurationMins");
+    expect(() =>
+      parseCodexRateLimits({
+        rateLimits: {
+          limitId: "codex",
+          primary: { usedPercent: 1, windowDurationMins: 300 },
+          secondary: { usedPercent: 1, windowDurationMins: 10081 }
+        }
+      })
+    ).toThrow("windowDurationMins");
+  });
+
+  it("대표 bucket의 primary 또는 secondary가 없으면 실패로 처리한다", () => {
+    expect(() =>
+      parseCodexRateLimits({
+        rateLimits: {
+          limitId: "codex",
+          primary: null,
+          secondary: { usedPercent: 1, windowDurationMins: 10080 }
+        }
+      })
+    ).toThrow("5h limit window");
+    expect(() =>
+      parseCodexRateLimits({
+        rateLimits: {
+          limitId: "codex",
+          primary: { usedPercent: 1, windowDurationMins: 300 }
+        }
+      })
+    ).toThrow("1w limit window");
+  });
+
+  it("첫 bucket이 chatgpt여도 codex bucket만 대표로 사용한다", () => {
+    const report = parseCodexRateLimits({
+      rateLimitsByLimitId: {
+        chatgpt: {
+          limitId: "chatgpt",
+          primary: { usedPercent: 99, windowDurationMins: 300 },
+          secondary: { usedPercent: 88, windowDurationMins: 10080 }
+        },
+        codex: {
+          limitId: "codex",
+          primary: { usedPercent: 7, windowDurationMins: 300 },
+          secondary: { usedPercent: 8, windowDurationMins: 10080 }
+        }
+      }
+    });
+
+    expect(report.limits[0].id).toBe("codex");
+    expect(report.limits[0].primary?.usedPercent).toBe(7);
   });
 
   it("JSON-RPC result wrapper를 처리한다", () => {
@@ -56,8 +129,19 @@ describe("parseCodexRateLimits", () => {
 });
 
 describe("getCodexAppServerProcessSpec", () => {
-  it("Windows에서는 cmd.exe가 codex.cmd app-server를 실행하게 한다", () => {
-    const spec = getCodexAppServerProcessSpec("win32", "C:\\Windows\\System32\\cmd.exe");
+  it("Windows에서는 cmd wrapper 대신 node로 Codex CLI 스크립트를 실행한다", () => {
+    const codexCliPath = "C:\\Users\\tester\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js";
+    const spec = getCodexAppServerProcessSpec("win32", "C:\\Windows\\System32\\cmd.exe", {
+      nodePath: "C:\\node\\node.exe",
+      codexCliPath
+    });
+
+    expect(spec.command).toBe("C:\\node\\node.exe");
+    expect(spec.args).toEqual([codexCliPath, "app-server"]);
+  });
+
+  it("Windows에서 Codex CLI 스크립트를 찾지 못하면 cmd wrapper로 fallback한다", () => {
+    const spec = getCodexAppServerProcessSpec("win32", "C:\\Windows\\System32\\cmd.exe", { codexCliPath: null });
 
     expect(spec.command).toBe("C:\\Windows\\System32\\cmd.exe");
     expect(spec.args).toEqual(["/d", "/s", "/c", "codex.cmd app-server"]);

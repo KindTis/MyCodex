@@ -3,14 +3,39 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist/electron/electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite --host 127.0.0.1",
-    "build": "tsc -p tsconfig.server.json && vite build",
+    "build": "tsc -p tsconfig.server.json && tsc -p tsconfig.electron.json && npm run build:preload && vite build",
+    "build:preload": "node scripts/copy-electron-preload.cjs",
+    "dev:overlay": "concurrently -k \"vite --host 127.0.0.1 --port 5173 --strictPort\" \"tsc -p tsconfig.electron.json --watch --preserveWatchOutput\" \"wait-on http://127.0.0.1:5173/overlay.html http://127.0.0.1:5173/settings.html dist/electron/electron/main.js && npm run build:preload && electron dist/electron/electron/main.js --dev\"",
     "start": "node dist/server/index.js",
+    "start:overlay": "electron dist/electron/electron/main.js",
+    "package:overlay": "node scripts/package-overlay.cjs",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "build": {
+    "appId": "local.mycodex.usage-overlay",
+    "productName": "MyCodex Usage Overlay",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/client/**/*",
+      "dist/electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        "portable"
+      ]
+    }
   },
   "dependencies": {
     "ccusage": "20.0.14",
@@ -26,10 +51,13 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
+    "electron": "^31.7.7",
+    "electron-builder": "^26.15.3",
     "jsdom": "^25.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^6.0.6",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "wait-on": "^9.0.10"
   }
 }

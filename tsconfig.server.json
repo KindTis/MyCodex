@@ -9,10 +9,10 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "outDir": "dist/server",
-    "rootDir": "server",
+    "outDir": "dist",
+    "rootDir": ".",
     "types": ["node"]
   },
-  "include": ["server/**/*.ts"],
-  "exclude": ["server/**/*.test.ts"]
+  "include": ["server/**/*.ts", "shared/**/*.ts"],
+  "exclude": ["server/**/*.test.ts", "shared/**/*.test.ts"]
 }

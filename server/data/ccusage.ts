@@ -1,7 +1,8 @@
 import path from "node:path";
-import { getLocalDateKey, getLocalDateKeysForWeekOffset } from "./date.js";
+import type { ChildProcess } from "node:child_process";
+import { getLocalDateKey, getLocalDateKeysForWeekOffset, isValidLocalDateKey } from "./date.js";
 import type { CcusageCostField, CcusageReport, DashboardRequest, TrendPoint } from "./types.js";
-import { parseJsonStdout, runProcess } from "../utils/process.js";
+import { parseJsonStdout, resolveNodeCommand, runProcess, type NodeCommandOptions } from "../utils/process.js";
 
 type RawCcusageRow = Record<string, unknown>;
 
@@ -30,17 +31,17 @@ function getRows(payload: unknown): RawCcusageRow[] {
   throw new Error("ccusage daily row 배열을 찾지 못했습니다.");
 }
 
-function readNumber(row: RawCcusageRow, field: string): number | null {
+function readNonNegativeFiniteNumber(row: RawCcusageRow, field: string): number | null {
   const value = row[field];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 function detectCostField(rows: RawCcusageRow[]): CcusageCostField {
-  if (rows.some((row) => typeof row.totalCost === "number")) {
+  if (rows.some((row) => Object.prototype.hasOwnProperty.call(row, "totalCost"))) {
     return "totalCost";
   }
 
-  if (rows.some((row) => typeof row.costUSD === "number")) {
+  if (rows.some((row) => Object.prototype.hasOwnProperty.call(row, "costUSD"))) {
     return "costUSD";
   }
 
@@ -48,20 +49,20 @@ function detectCostField(rows: RawCcusageRow[]): CcusageCostField {
 }
 
 function normalizeRow(row: RawCcusageRow, costField: CcusageCostField): TrendPoint {
-  if (typeof row.date !== "string") {
+  if (typeof row.date !== "string" || !isValidLocalDateKey(row.date)) {
     throw new Error("ccusage row의 date 필드가 올바르지 않습니다.");
   }
 
-  const tokens = readNumber(row, "totalTokens");
+  const tokens = readNonNegativeFiniteNumber(row, "totalTokens");
   if (tokens === null) {
     throw new Error("ccusage row의 totalTokens 필드가 올바르지 않습니다.");
   }
 
   const cost =
     costField === "totalCost"
-      ? readNumber(row, "totalCost")
+      ? readNonNegativeFiniteNumber(row, "totalCost")
       : costField === "costUSD"
-        ? readNumber(row, "costUSD")
+        ? readNonNegativeFiniteNumber(row, "costUSD")
         : null;
 
   if (cost === null) {
@@ -107,20 +108,33 @@ export function parseCcusageDaily(payload: unknown, now = new Date(), options: D
   };
 }
 
-export function getCcusageProcessSpec(cwd = process.cwd(), nodePath = process.execPath): { command: string; args: string[] } {
+export function getCcusageProcessSpec(
+  cwd = process.cwd(),
+  nodePath = process.execPath,
+  options: NodeCommandOptions = {}
+): { command: string; args: string[] } {
   return {
-    command: nodePath,
+    command: resolveNodeCommand(nodePath, options),
     args: [path.resolve(cwd, "node_modules", "ccusage", "src", "cli.js"), "codex", "daily", "--json"]
   };
 }
 
-export async function readCcusageDaily(options: DashboardRequest = {}): Promise<CcusageReport> {
-  const spec = getCcusageProcessSpec();
-  const result = await runProcess(spec.command, spec.args, { timeoutMs: 20_000 });
+export type CcusageReaderOptions = {
+  onChild?: (child: ChildProcess) => void;
+  cwd?: string;
+};
 
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr || `ccusage가 종료 코드 ${result.exitCode}로 실패했습니다.`);
-  }
+export function createCcusageDailyReader(readerOptions: CcusageReaderOptions = {}) {
+  return async function readCcusageDailyWithDeps(options: DashboardRequest = {}): Promise<CcusageReport> {
+    const spec = getCcusageProcessSpec(readerOptions.cwd);
+    const result = await runProcess(spec.command, spec.args, { timeoutMs: 20_000, onChild: readerOptions.onChild });
 
-  return parseCcusageDaily(parseJsonStdout(result.stdout), new Date(), options);
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr || `ccusage가 종료 코드 ${result.exitCode}로 실패했습니다.`);
+    }
+
+    return parseCcusageDaily(parseJsonStdout(result.stdout), new Date(), options);
+  };
 }
+
+export const readCcusageDaily = createCcusageDailyReader();

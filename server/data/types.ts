@@ -1,44 +1,18 @@
-export type SourceName = "ccusage" | "codexAppServer";
+export type {
+  DashboardRequest,
+  DashboardResponse,
+  DashboardStatus,
+  DebugError,
+  DebugResponse,
+  LimitBucket,
+  LimitWindow,
+  SourceName,
+  SourceStatus,
+  TodayUsage,
+  TrendPoint
+} from "../../shared/dashboardTypes.js";
 
-export type DashboardStatus = "ok" | "partial" | "error";
-
-export type SourceStatus = {
-  ok: boolean;
-  message: string | null;
-  checkedAt: string;
-};
-
-export type TrendPoint = {
-  date: string;
-  tokens: number;
-  costUsd: number;
-};
-
-export type TodayUsage = TrendPoint;
-
-export type LimitWindow = {
-  label: "5h" | "1w";
-  usedPercent: number;
-  resetsAt: string | null;
-  windowDurationMins: number | null;
-};
-
-export type LimitBucket = {
-  id: string;
-  name: string;
-  planType: string | null;
-  primary: LimitWindow | null;
-  secondary: LimitWindow | null;
-};
-
-export type DashboardResponse = {
-  generatedAt: string;
-  status: DashboardStatus;
-  today: TodayUsage | null;
-  trend: TrendPoint[];
-  limits: LimitBucket[];
-  sources: Record<SourceName, SourceStatus>;
-};
+import type { LimitBucket, SourceName, TodayUsage, TrendPoint } from "../../shared/dashboardTypes.js";
 
 export type CcusageCostField = "totalCost" | "costUSD" | "none" | "other";
 
@@ -59,37 +33,10 @@ export type CodexAppServerSummary = {
   secondaryUsedPercent: number | null;
 };
 
-export type DebugError = {
-  at: string;
-  source: SourceName;
-  message: string;
-};
-
-export type DebugResponse = {
-  generatedAt: string;
-  ccusage: {
-    ok: boolean;
-    lastSuccessAt: string | null;
-    lastFailureAt: string | null;
-    summary: CcusageSummary;
-  };
-  codexAppServer: {
-    ok: boolean;
-    lastSuccessAt: string | null;
-    lastFailureAt: string | null;
-    summary: CodexAppServerSummary;
-  };
-  errors: DebugError[];
-};
-
 export type CcusageReport = {
   today: TodayUsage;
   trend: TrendPoint[];
   summary: CcusageSummary;
-};
-
-export type DashboardRequest = {
-  weekOffset?: number;
 };
 
 export type CodexRateLimitReport = {

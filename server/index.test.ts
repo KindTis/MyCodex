@@ -1,5 +1,9 @@
 import type { Server } from "node:http";
-import { createApp } from "./index.js";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { createApp, isMainModule } from "./index.js";
 import type { DashboardResponse, DebugResponse } from "./data/types.js";
 
 const dashboard: DashboardResponse = {
@@ -44,8 +48,12 @@ const debug: DebugResponse = {
   errors: []
 };
 
-async function withServer<T>(service: Parameters<typeof createApp>[0], run: (url: string) => Promise<T>) {
-  const app = createApp(service);
+async function withServer<T>(
+  service: Parameters<typeof createApp>[0],
+  run: (url: string) => Promise<T>,
+  options?: Parameters<typeof createApp>[1]
+) {
+  const app = createApp(service, options);
   const server = await new Promise<Server>((resolve) => {
     const nextServer = app.listen(0, "127.0.0.1", () => resolve(nextServer));
   });
@@ -62,6 +70,33 @@ async function withServer<T>(service: Parameters<typeof createApp>[0], run: (url
 }
 
 describe("Express API", () => {
+  it("clientDir option으로 Electron 패키지의 dist/client를 서빙할 수 있다", async () => {
+    const clientDir = await fs.mkdtemp(path.join(os.tmpdir(), "codex-dashboard-client-"));
+    await fs.writeFile(path.join(clientDir, "index.html"), "<html><body>electron dashboard</body></html>", "utf8");
+
+    await withServer(
+      {
+        getDashboard: () => Promise.resolve(dashboard),
+        getDebug: () => debug
+      },
+      async (url) => {
+        const response = await fetch(`${url}/anything`);
+
+        expect(response.ok).toBe(true);
+        expect(await response.text()).toContain("electron dashboard");
+      },
+      { clientDir }
+    );
+  });
+
+  it("server/index.js가 직접 실행될 때만 main module로 판단한다", () => {
+    const serverPath = path.resolve("dist/server/index.js");
+    const serverUrl = pathToFileURL(serverPath).toString();
+
+    expect(isMainModule(serverUrl, ["node", serverPath])).toBe(true);
+    expect(isMainModule(serverUrl, ["electron", path.resolve("dist/electron/electron/main.js")])).toBe(false);
+  });
+
   it("GET /api/dashboard가 통합 응답을 반환한다", async () => {
     await withServer(
       {

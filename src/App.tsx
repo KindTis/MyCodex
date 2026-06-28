@@ -7,9 +7,14 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <div>
-          <p className="eyebrow">Local Codex Usage</p>
-          <h1>Codex 사용량 대시보드</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">
+            Cx
+          </span>
+          <div>
+            <p className="eyebrow">Local Codex Usage</p>
+            <h1>Codex 사용량</h1>
+          </div>
         </div>
         <nav className="nav-links" aria-label="주요 페이지">
           <a className={!isDebug ? "active" : ""} href="/">

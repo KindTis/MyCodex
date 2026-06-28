@@ -7,7 +7,7 @@ import type { DashboardRequest, DashboardResponse, DebugResponse } from "./data/
 import { sanitizeMessage } from "./utils/sanitize.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const clientDir = path.resolve(__dirname, "../client");
+const defaultClientDir = path.resolve(__dirname, "../client");
 
 type DashboardHttpService = {
   getDashboard: (options?: DashboardRequest) => Promise<DashboardResponse>;
@@ -21,8 +21,18 @@ function parseWeekOffset(value: unknown): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
 }
 
-export function createApp(service: DashboardHttpService = dashboardService) {
+export function isMainModule(metaUrl: string, argv = process.argv): boolean {
+  const entryPath = argv[1];
+  if (!entryPath) {
+    return false;
+  }
+
+  return path.resolve(entryPath) === fileURLToPath(metaUrl);
+}
+
+export function createApp(service: DashboardHttpService = dashboardService, options: { clientDir?: string } = {}) {
   const app = express();
+  const clientDir = options.clientDir ?? defaultClientDir;
 
   app.use(express.json());
 
@@ -62,7 +72,7 @@ export function createApp(service: DashboardHttpService = dashboardService) {
 
 export const app = createApp();
 
-if (process.env.NODE_ENV !== "test") {
+if (process.env.NODE_ENV !== "test" && isMainModule(import.meta.url)) {
   const port = Number(process.env.PORT ?? 4317);
   const host = process.env.HOST ?? "127.0.0.1";
   app.listen(port, host, () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { DashboardPage } from "./DashboardPage";
 import type { DashboardResponse } from "../api";
 
@@ -82,10 +82,18 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("사용 불가").length).toBeGreaterThan(0);
     expect(screen.getByText("5시간 limit")).toBeTruthy();
     expect(screen.getByText("12.0%")).toBeTruthy();
-    expect(screen.getByText("ccusage fixture 실패")).toBeTruthy();
+    const sourceStatusList = screen.getByRole("list", { name: "데이터 소스 상태" });
+    expect(within(sourceStatusList).getByText("ccusage")).toBeTruthy();
+    expect(within(sourceStatusList).getByText("ccusage fixture 실패")).toBeTruthy();
+    expect(within(sourceStatusList).getByText("Codex App Server")).toBeTruthy();
+    expect(within(sourceStatusList).getByText("정상")).toBeTruthy();
+    const dashboardSummary = screen.getByLabelText("대시보드 요약");
+    expect(within(dashboardSummary).getByText("마지막 갱신")).toBeTruthy();
+    expect(within(dashboardSummary).getByText("다음 갱신")).toBeTruthy();
+    expect(within(dashboardSummary).getByRole("button", { name: "새로고침" })).toBeTruthy();
   });
 
-  it("Line/Area 추이에서 토큰과 비용을 전환하고 이전 7일을 조회한다", async () => {
+  it("Line/Area 추이에서 토큰과 비용을 함께 표시하고 이전 7일을 조회한다", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(okDashboard)
@@ -93,15 +101,20 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    await waitFor(() => expect(screen.getByLabelText("최근 7일 토큰 추이 그래프")).toBeTruthy());
-    expect(screen.getByLabelText("최근 7일 토큰 추이 그래프")).toBeTruthy();
+    await waitFor(() => expect(screen.getByLabelText("최근 7일 토큰 및 비용 추이 그래프")).toBeTruthy());
+    expect(screen.getByLabelText("최근 7일 토큰 및 비용 추이 그래프")).toBeTruthy();
     expect(screen.getByText("주간 토큰")).toBeTruthy();
     expect(screen.getByText("2,800")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "비용" }));
-    expect(screen.getByLabelText("최근 7일 비용 추이 그래프")).toBeTruthy();
     expect(screen.getByText("주간 비용")).toBeTruthy();
     expect(screen.getByText("$0.28")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "비용" })).toBeNull();
+
+    fireEvent.mouseEnter(screen.getByLabelText("2026-06-26 비용 꼭지점 토큰 700 비용 $0.07"));
+    expect(screen.getByRole("status").textContent).toContain("2026-06-26");
+    expect(screen.getByRole("status").textContent).toContain("토큰: 700");
+    expect(screen.getByRole("status").textContent).toContain("비용: $0.07");
+    fireEvent.mouseLeave(screen.getByLabelText("2026-06-26 비용 꼭지점 토큰 700 비용 $0.07"));
+    expect(screen.queryByRole("status")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "이전 7일" }));
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith("/api/dashboard?weekOffset=1"));

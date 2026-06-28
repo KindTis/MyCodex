@@ -1,6 +1,10 @@
+import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { epochSecondsToIso } from "./date.js";
 import type { CodexAppServerSummary, CodexRateLimitReport, LimitBucket, LimitWindow } from "./types.js";
+import { resolveNodeCommand, type NodeCommandOptions } from "../utils/process.js";
 
 type RawLimitWindow = Record<string, unknown>;
 type RawLimitBucket = Record<string, unknown>;
@@ -51,6 +55,10 @@ function collectBuckets(record: Record<string, unknown>): RawLimitBucket[] {
   return [...buckets.values()];
 }
 
+function expectedDurationMins(label: "5h" | "1w"): number {
+  return label === "5h" ? 300 : 10_080;
+}
+
 function parseWindow(value: unknown, label: "5h" | "1w", strict: boolean): LimitWindow | null {
   if (!value || typeof value !== "object") {
     if (strict) {
@@ -61,7 +69,7 @@ function parseWindow(value: unknown, label: "5h" | "1w", strict: boolean): Limit
 
   const record = value as RawLimitWindow;
   const usedPercent = record.usedPercent;
-  if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent)) {
+  if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent) || usedPercent < 0) {
     if (strict) {
       throw new Error(`${label} limit usedPercent가 올바르지 않습니다.`);
     }
@@ -72,6 +80,9 @@ function parseWindow(value: unknown, label: "5h" | "1w", strict: boolean): Limit
     typeof record.windowDurationMins === "number" && Number.isFinite(record.windowDurationMins)
       ? record.windowDurationMins
       : null;
+  if (strict && windowDurationMins !== expectedDurationMins(label)) {
+    throw new Error(`${label} limit windowDurationMins가 올바르지 않습니다.`);
+  }
 
   return {
     label,
@@ -149,11 +160,43 @@ export function getCodexInitializedNotification(): RpcMessage {
   };
 }
 
+type CodexAppServerProcessSpecOptions = NodeCommandOptions & {
+  nodePath?: string;
+  codexCliPath?: string | null;
+  appDataPath?: string;
+};
+
+function getDefaultWindowsCodexCliPath(appDataPath = process.env.APPDATA): string | null {
+  if (!appDataPath) {
+    return null;
+  }
+
+  const candidate = path.join(appDataPath, "npm", "node_modules", "@openai", "codex", "bin", "codex.js");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
+function getWindowsCodexCliPath(options: CodexAppServerProcessSpecOptions): string | null {
+  if (Object.prototype.hasOwnProperty.call(options, "codexCliPath")) {
+    return options.codexCliPath ?? null;
+  }
+
+  return getDefaultWindowsCodexCliPath(options.appDataPath);
+}
+
 export function getCodexAppServerProcessSpec(
   platform = process.platform,
-  comSpec = process.env.ComSpec
+  comSpec = process.env.ComSpec,
+  options: CodexAppServerProcessSpecOptions = {}
 ): { command: string; args: string[] } {
   if (platform === "win32") {
+    const codexCliPath = getWindowsCodexCliPath(options);
+    if (codexCliPath) {
+      return {
+        command: resolveNodeCommand(options.nodePath ?? process.execPath, options),
+        args: [codexCliPath, "app-server"]
+      };
+    }
+
     return {
       command: comSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "codex.cmd app-server"]
@@ -166,13 +209,22 @@ export function getCodexAppServerProcessSpec(
   };
 }
 
-export function readCodexRateLimits(timeoutMs = 20_000): Promise<CodexRateLimitReport> {
-  return new Promise((resolve, reject) => {
+export type CodexRateLimitsReaderOptions = {
+  onChild?: (child: ChildProcess) => void;
+  timeoutMs?: number;
+};
+
+export function createCodexRateLimitsReader(readerOptions: CodexRateLimitsReaderOptions = {}) {
+  return function readCodexRateLimitsWithDeps(): Promise<CodexRateLimitReport> {
+    const timeoutMs = readerOptions.timeoutMs ?? 20_000;
+
+    return new Promise((resolve, reject) => {
     const spec = getCodexAppServerProcessSpec();
     const child = spawn(spec.command, spec.args, {
       stdio: ["pipe", "pipe", "pipe"],
       windowsHide: true
     });
+    readerOptions.onChild?.(child);
 
     let buffer = "";
     let stderr = "";
@@ -249,4 +301,9 @@ export function readCodexRateLimits(timeoutMs = 20_000): Promise<CodexRateLimitR
 
     send(getCodexInitializeRequest());
   });
+  };
+}
+
+export function readCodexRateLimits(timeoutMs = 20_000): Promise<CodexRateLimitReport> {
+  return createCodexRateLimitsReader({ timeoutMs })();
 }

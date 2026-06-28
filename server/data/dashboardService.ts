@@ -32,12 +32,12 @@ export function createDashboardService(deps: DashboardServiceDeps = {}) {
   const now = deps.now ?? (() => new Date());
 
   async function getDashboard(options: DashboardRequest = {}): Promise<DashboardResponse> {
-    const generatedAt = now().toISOString();
     const weekOffset = Number.isInteger(options.weekOffset) && (options.weekOffset ?? 0) > 0 ? options.weekOffset : 0;
     const [ccusageResult, codexResult] = await Promise.allSettled([
       runReader(() => ccusageReader({ weekOffset })),
       runReader(codexReader)
     ]);
+    const generatedAt = now().toISOString();
     const ccusageOk = ccusageResult.status === "fulfilled";
     const codexOk = codexResult.status === "fulfilled";
 
