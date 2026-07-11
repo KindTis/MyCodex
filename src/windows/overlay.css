@@ -236,8 +236,16 @@ progress::-webkit-progress-value {
   font-size: 12px;
 }
 
+.settings-panel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #84cc16;
+}
+
 .settings-panel input[type="number"]:focus,
-.settings-panel input[type="range"]:focus-visible {
+.settings-panel input[type="range"]:focus-visible,
+.settings-panel input[type="checkbox"]:focus-visible {
   outline: 2px solid rgba(132, 204, 22, 0.58);
   outline-offset: 2px;
 }

@@ -1,8 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SettingsDialog } from "./SettingsDialog";
 
-function installSettingsApi(updateResult: unknown = { ok: true, settings: { panelAlphaPercent: 70, refreshIntervalSeconds: 20 } }) {
-  const get = vi.fn(() => Promise.resolve({ panelAlphaPercent: 70, refreshIntervalSeconds: 20 }));
+function installSettingsApi(
+  updateResult: unknown = {
+    ok: true,
+    settings: { panelAlphaPercent: 70, refreshIntervalSeconds: 20, showResetAsRemainingTime: true }
+  }
+) {
+  const get = vi.fn(() =>
+    Promise.resolve({ panelAlphaPercent: 70, refreshIntervalSeconds: 20, showResetAsRemainingTime: true })
+  );
   const update = vi.fn(() => Promise.resolve(updateResult));
   window.codexOverlay = { settings: { get, update } };
   return { get, update };
@@ -54,6 +61,32 @@ describe("SettingsDialog", () => {
     expect(panel.style.getPropertyValue("--panel-alpha")).toBe("0.55");
   });
 
+  it("저장된 상대 시간 표시 옵션으로 checkbox를 초기화한다", async () => {
+    installSettingsApi();
+    render(<SettingsDialog />);
+
+    await waitFor(() =>
+      expect((screen.getByLabelText("Display reset as remaining time") as HTMLInputElement).checked).toBe(true)
+    );
+  });
+
+  it("상대 시간 표시 옵션을 기존 설정과 함께 저장한다", async () => {
+    const api = installSettingsApi();
+    render(<SettingsDialog />);
+    const checkbox = await screen.findByLabelText("Display reset as remaining time");
+
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(api.update).toHaveBeenCalledWith({
+        panelAlphaPercent: 70,
+        refreshIntervalSeconds: 20,
+        showResetAsRemainingTime: false
+      })
+    );
+  });
+
   it("저장 성공 시 초 단위 정수를 보내고 window.close를 호출한다", async () => {
     const api = installSettingsApi();
     render(<SettingsDialog />);
@@ -63,7 +96,11 @@ describe("SettingsDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
-      expect(api.update).toHaveBeenCalledWith({ panelAlphaPercent: 70, refreshIntervalSeconds: 30 })
+      expect(api.update).toHaveBeenCalledWith({
+        panelAlphaPercent: 70,
+        refreshIntervalSeconds: 30,
+        showResetAsRemainingTime: true
+      })
     );
     expect(close).toHaveBeenCalledTimes(1);
   });

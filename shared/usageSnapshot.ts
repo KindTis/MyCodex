@@ -5,6 +5,11 @@ export type UsageSnapshotInput =
   | { kind: "response"; response: DashboardResponse }
   | { kind: "exception"; caughtAt: Date };
 
+export type UsageSnapshotOptions = {
+  showResetAsRemainingTime?: boolean;
+  now?: Date;
+};
+
 export type UsageSnapshotViewModel = {
   statusTone: "pending" | "ok" | "fail";
   todayTokensText: string;
@@ -29,16 +34,24 @@ const resetTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23"
 });
 
-const unavailableModel = (statusTone: UsageSnapshotViewModel["statusTone"], updatedAtText: string) => ({
+function resetPrefix(showResetAsRemainingTime: boolean): "RESET" | "NEXT" {
+  return showResetAsRemainingTime ? "NEXT" : "RESET";
+}
+
+const unavailableModel = (
+  statusTone: UsageSnapshotViewModel["statusTone"],
+  updatedAtText: string,
+  showResetAsRemainingTime = false
+) => ({
   statusTone,
   todayTokensText: unavailable,
   todayCostText: unavailable,
   fiveHourLimitText: unavailable,
   fiveHourLimitFillPercent: 0,
-  fiveHourResetText: unavailable,
+  fiveHourResetText: `${resetPrefix(showResetAsRemainingTime)} ${unavailable}`,
   oneWeekLimitText: unavailable,
   oneWeekLimitFillPercent: 0,
-  oneWeekResetText: unavailable,
+  oneWeekResetText: `${resetPrefix(showResetAsRemainingTime)} ${unavailable}`,
   updatedAtText
 });
 
@@ -72,25 +85,64 @@ function limitFill(window: LimitWindow | null | undefined): number {
   return Math.max(0, Math.min(100, window.usedPercent));
 }
 
-function resetText(window: LimitWindow | null | undefined): string {
-  if (!window?.resetsAt) {
-    return unavailable;
+function padTwo(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function remainingResetText(totalMinutes: number, label: LimitWindow["label"]): string {
+  if (label === "5h") {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${padTwo(hours)}:${padTwo(minutes)}`;
   }
 
-  return resetTimeFormatter.format(new Date(window.resetsAt)).replace(",", "");
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
+  return `${days}:${padTwo(hours)}:${padTwo(minutes)}`;
+}
+
+function resetText(
+  window: LimitWindow | null | undefined,
+  label: LimitWindow["label"],
+  showResetAsRemainingTime: boolean,
+  now: Date
+): string {
+  const prefix = resetPrefix(showResetAsRemainingTime);
+  if (!window?.resetsAt) {
+    return `${prefix} ${unavailable}`;
+  }
+
+  const resetsAt = new Date(window.resetsAt);
+  if (!Number.isFinite(resetsAt.getTime())) {
+    return `${prefix} ${unavailable}`;
+  }
+
+  if (!showResetAsRemainingTime) {
+    return `${prefix} ${resetTimeFormatter.format(resetsAt).replace(",", "")}`;
+  }
+
+  const totalMinutes = Math.max(0, Math.floor((resetsAt.getTime() - now.getTime()) / 60_000));
+  return `${prefix} ${remainingResetText(totalMinutes, label)}`;
 }
 
 function codexBucket(response: DashboardResponse): LimitBucket | null {
   return response.sources.codexAppServer.ok ? response.limits.find((bucket) => bucket.id === "codex") ?? null : null;
 }
 
-export function toUsageSnapshotViewModel(input: UsageSnapshotInput): UsageSnapshotViewModel {
+export function toUsageSnapshotViewModel(
+  input: UsageSnapshotInput,
+  options: UsageSnapshotOptions = {}
+): UsageSnapshotViewModel {
+  const showResetAsRemainingTime = options.showResetAsRemainingTime ?? false;
+  const now = options.now ?? new Date();
+
   if (input.kind === "pending") {
-    return unavailableModel("pending", pendingTime);
+    return unavailableModel("pending", pendingTime, showResetAsRemainingTime);
   }
 
   if (input.kind === "exception") {
-    return unavailableModel("fail", formatTime(input.caughtAt));
+    return unavailableModel("fail", formatTime(input.caughtAt), showResetAsRemainingTime);
   }
 
   const { response } = input;
@@ -106,10 +158,10 @@ export function toUsageSnapshotViewModel(input: UsageSnapshotInput): UsageSnapsh
     todayCostText,
     fiveHourLimitText: limitText(bucket?.primary),
     fiveHourLimitFillPercent: limitFill(bucket?.primary),
-    fiveHourResetText: resetText(bucket?.primary),
+    fiveHourResetText: resetText(bucket?.primary, "5h", showResetAsRemainingTime, now),
     oneWeekLimitText: limitText(bucket?.secondary),
     oneWeekLimitFillPercent: limitFill(bucket?.secondary),
-    oneWeekResetText: resetText(bucket?.secondary),
+    oneWeekResetText: resetText(bucket?.secondary, "1w", showResetAsRemainingTime, now),
     updatedAtText: formatTime(new Date(response.generatedAt))
   };
 }

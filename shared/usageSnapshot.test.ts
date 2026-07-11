@@ -29,10 +29,10 @@ describe("toUsageSnapshotViewModel", () => {
       todayCostText: "--",
       fiveHourLimitText: "--",
       fiveHourLimitFillPercent: 0,
-      fiveHourResetText: "--",
+      fiveHourResetText: "RESET --",
       oneWeekLimitText: "--",
       oneWeekLimitFillPercent: 0,
-      oneWeekResetText: "--",
+      oneWeekResetText: "RESET --",
       updatedAtText: "--:--:--"
     });
   });
@@ -52,15 +52,95 @@ describe("toUsageSnapshotViewModel", () => {
     };
 
     const model = toUsageSnapshotViewModel({ kind: "response", response });
-    expect(model.fiveHourResetText).toBe("7/11 23:30");
-    expect(model.oneWeekResetText).toBe("7/18 12:05");
+    expect(model.fiveHourResetText).toBe("RESET 7/11 23:30");
+    expect(model.oneWeekResetText).toBe("RESET 7/18 12:05");
   });
+
+  it("상대 모드는 초를 버리고 5H와 1W 형식으로 표시한다", () => {
+    const now = new Date("2026-07-11T12:00:00.000Z");
+    const response = {
+      ...baseResponse,
+      limits: [
+        {
+          ...baseResponse.limits[0],
+          primary: {
+            ...baseResponse.limits[0].primary!,
+            resetsAt: "2026-07-11T13:30:59.000Z"
+          },
+          secondary: {
+            ...baseResponse.limits[0].secondary!,
+            resetsAt: "2026-07-13T13:30:59.000Z"
+          }
+        }
+      ]
+    };
+
+    const model = toUsageSnapshotViewModel(
+      { kind: "response", response },
+      { showResetAsRemainingTime: true, now }
+    );
+
+    expect(model.fiveHourResetText).toBe("NEXT 01:30");
+    expect(model.oneWeekResetText).toBe("NEXT 2:01:30");
+  });
+
+  it.each([
+    { resetsAt: "2026-07-11T12:00:59.000Z", fiveHourText: "NEXT 00:00", oneWeekText: "NEXT 0:00:00" },
+    { resetsAt: "2026-07-11T12:00:00.000Z", fiveHourText: "NEXT 00:00", oneWeekText: "NEXT 0:00:00" },
+    { resetsAt: "2026-07-11T11:59:00.000Z", fiveHourText: "NEXT 00:00", oneWeekText: "NEXT 0:00:00" }
+  ])("미래 1분 미만, 현재, 과거 reset $resetsAt은 0으로 고정한다", ({ resetsAt, fiveHourText, oneWeekText }) => {
+    const response = {
+      ...baseResponse,
+      limits: [
+        {
+          ...baseResponse.limits[0],
+          primary: { ...baseResponse.limits[0].primary!, resetsAt },
+          secondary: { ...baseResponse.limits[0].secondary!, resetsAt }
+        }
+      ]
+    };
+
+    const model = toUsageSnapshotViewModel(
+      { kind: "response", response },
+      { showResetAsRemainingTime: true, now: new Date("2026-07-11T12:00:00.000Z") }
+    );
+
+    expect(model.fiveHourResetText).toBe(fiveHourText);
+    expect(model.oneWeekResetText).toBe(oneWeekText);
+  });
+
+  it.each([null, "not-a-date"] as const)(
+    "reset을 얻지 못하면 선택한 접두어와 --를 표시한다: %s",
+    (resetsAt) => {
+      const response = {
+        ...baseResponse,
+        limits: [
+          {
+            ...baseResponse.limits[0],
+            primary: { ...baseResponse.limits[0].primary!, resetsAt },
+            secondary: { ...baseResponse.limits[0].secondary!, resetsAt }
+          }
+        ]
+      };
+
+      const absoluteModel = toUsageSnapshotViewModel({ kind: "response", response });
+      const relativeModel = toUsageSnapshotViewModel(
+        { kind: "response", response },
+        { showResetAsRemainingTime: true, now: new Date("2026-07-11T12:00:00.000Z") }
+      );
+
+      expect(absoluteModel.fiveHourResetText).toBe("RESET --");
+      expect(absoluteModel.oneWeekResetText).toBe("RESET --");
+      expect(relativeModel.fiveHourResetText).toBe("NEXT --");
+      expect(relativeModel.oneWeekResetText).toBe("NEXT --");
+    }
+  );
 
   it("limit resetsAt이 없으면 reset text를 placeholder로 반환한다", () => {
     const model = toUsageSnapshotViewModel({ kind: "response", response: baseResponse });
 
-    expect(model.fiveHourResetText).toBe("--");
-    expect(model.oneWeekResetText).toBe("--");
+    expect(model.fiveHourResetText).toBe("RESET --");
+    expect(model.oneWeekResetText).toBe("RESET --");
   });
 
   it("두 source가 모두 성공인 response는 ok tone을 반환한다", () => {
@@ -107,9 +187,9 @@ describe("toUsageSnapshotViewModel", () => {
     expect(model.todayTokensText).toBe("123,456");
     expect(model.todayCostText).toBe("$0.0000");
     expect(model.fiveHourLimitText).toBe("--");
-    expect(model.fiveHourResetText).toBe("--");
+    expect(model.fiveHourResetText).toBe("RESET --");
     expect(model.oneWeekLimitText).toBe("--");
-    expect(model.oneWeekResetText).toBe("--");
+    expect(model.oneWeekResetText).toBe("RESET --");
   });
 
   it("100 초과 usedPercent는 text는 실제값, fill은 100으로 clamp한다", () => {
@@ -148,9 +228,9 @@ describe("toUsageSnapshotViewModel", () => {
       todayTokensText: "--",
       todayCostText: "--",
       fiveHourLimitText: "--",
-      fiveHourResetText: "--",
+      fiveHourResetText: "RESET --",
       oneWeekLimitText: "--",
-      oneWeekResetText: "--",
+      oneWeekResetText: "RESET --",
       updatedAtText: "01:02:03"
     });
   });

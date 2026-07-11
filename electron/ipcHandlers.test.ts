@@ -31,7 +31,10 @@ function harness(options: { shuttingDown?: boolean; response?: DashboardResponse
     options.throws ? Promise.reject(new Error("dashboard failed")) : Promise.resolve(options.response ?? okResponse)
   );
   const updateEditableSettings = vi.fn(() =>
-    Promise.resolve({ ok: true as const, settings: { panelAlphaPercent: 80, refreshIntervalSeconds: 10 } })
+    Promise.resolve({
+      ok: true as const,
+      settings: { panelAlphaPercent: 80, refreshIntervalSeconds: 10, showResetAsRemainingTime: true }
+    })
   );
   const updateWindowPosition = vi.fn(() => Promise.resolve());
   const broadcastSettingsChanged = vi.fn();
@@ -42,7 +45,7 @@ function harness(options: { shuttingDown?: boolean; response?: DashboardResponse
   const handlers = createIpcHandlers({
     dashboardService: { getDashboard },
     settingsStore: {
-      get: () => ({ panelAlphaPercent: 50, refreshIntervalSeconds: 5 }),
+      get: () => ({ panelAlphaPercent: 50, refreshIntervalSeconds: 5, showResetAsRemainingTime: false }),
       updateEditableSettings,
       updateWindowPosition
     },
@@ -110,23 +113,38 @@ describe("ipcHandlers", () => {
   it("overlay와 settings sender 모두 settings.get을 호출할 수 있다", async () => {
     const h = harness();
 
-    await expect(h.handlers.handleSettingsGet(event(1))).resolves.toEqual({ panelAlphaPercent: 50, refreshIntervalSeconds: 5 });
-    await expect(h.handlers.handleSettingsGet(event(2))).resolves.toEqual({ panelAlphaPercent: 50, refreshIntervalSeconds: 5 });
+    await expect(h.handlers.handleSettingsGet(event(1))).resolves.toEqual({
+      panelAlphaPercent: 50,
+      refreshIntervalSeconds: 5,
+      showResetAsRemainingTime: false
+    });
+    await expect(h.handlers.handleSettingsGet(event(2))).resolves.toEqual({
+      panelAlphaPercent: 50,
+      refreshIntervalSeconds: 5,
+      showResetAsRemainingTime: false
+    });
   });
 
   it("settings.update는 settings sender만 저장하고 overlay에 changed 이벤트를 보낸다", async () => {
     const h = harness();
 
-    await expect(h.handlers.handleSettingsUpdate(event(2), { panelAlphaPercent: 80, refreshIntervalSeconds: 10 })).resolves.toEqual({
+    const input = {
+      panelAlphaPercent: 80,
+      refreshIntervalSeconds: 10,
+      showResetAsRemainingTime: true
+    };
+
+    await expect(h.handlers.handleSettingsUpdate(event(2), input)).resolves.toEqual({
       ok: true,
-      settings: { panelAlphaPercent: 80, refreshIntervalSeconds: 10 }
+      settings: { panelAlphaPercent: 80, refreshIntervalSeconds: 10, showResetAsRemainingTime: true }
     });
-    await expect(h.handlers.handleSettingsUpdate(event(1), { panelAlphaPercent: 80, refreshIntervalSeconds: 10 })).resolves.toMatchObject({
+    await expect(h.handlers.handleSettingsUpdate(event(1), input)).resolves.toMatchObject({
       ok: false,
       fieldErrors: {}
     });
 
     expect(h.updateEditableSettings).toHaveBeenCalledTimes(1);
+    expect(h.updateEditableSettings).toHaveBeenCalledWith(input);
     expect(h.broadcastSettingsChanged).toHaveBeenCalledTimes(1);
   });
 
@@ -143,10 +161,13 @@ describe("ipcHandlers", () => {
   it("shutdown 이후 settings.update와 updateWindowPosition은 저장과 event를 수행하지 않는다", async () => {
     const h = harness({ shuttingDown: true });
 
-    await expect(h.handlers.handleSettingsUpdate(event(2), { panelAlphaPercent: 80, refreshIntervalSeconds: 10 })).resolves.toMatchObject({
-      ok: false,
-      fieldErrors: {}
-    });
+    await expect(
+      h.handlers.handleSettingsUpdate(event(2), {
+        panelAlphaPercent: 80,
+        refreshIntervalSeconds: 10,
+        showResetAsRemainingTime: true
+      })
+    ).resolves.toMatchObject({ ok: false, fieldErrors: {} });
     await h.handlers.updateWindowPosition({ x: 1, y: 2 });
 
     expect(h.updateEditableSettings).not.toHaveBeenCalled();

@@ -10,6 +10,9 @@ export function SettingsDialog() {
   const api = getCodexOverlayApi();
   const [panelAlphaPercent, setPanelAlphaPercent] = useState(DEFAULT_OVERLAY_SETTINGS.panelAlphaPercent);
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(DEFAULT_OVERLAY_SETTINGS.refreshIntervalSeconds);
+  const [showResetAsRemainingTime, setShowResetAsRemainingTime] = useState(
+    DEFAULT_OVERLAY_SETTINGS.showResetAsRemainingTime
+  );
   const [result, setResult] = useState<SettingsUpdateResult | null>(null);
 
   useEffect(() => {
@@ -20,6 +23,7 @@ export function SettingsDialog() {
       }
       setPanelAlphaPercent(settings.panelAlphaPercent);
       setRefreshIntervalSeconds(settings.refreshIntervalSeconds);
+      setShowResetAsRemainingTime(settings.showResetAsRemainingTime);
     });
 
     return () => {
@@ -34,7 +38,11 @@ export function SettingsDialog() {
       return;
     }
 
-    const nextResult = await api.settings.update({ panelAlphaPercent, refreshIntervalSeconds });
+    const nextResult = await api.settings.update({
+      panelAlphaPercent,
+      refreshIntervalSeconds,
+      showResetAsRemainingTime
+    });
     setResult(nextResult);
     if (nextResult.ok) {
       window.close();
@@ -76,6 +84,18 @@ export function SettingsDialog() {
         </label>
         {!result?.ok && result?.fieldErrors.refreshIntervalSeconds ? (
           <p className="field-error">{result.fieldErrors.refreshIntervalSeconds}</p>
+        ) : null}
+        <label className="checkbox-field">
+          <span>Display reset as remaining time</span>
+          <input
+            aria-label="Display reset as remaining time"
+            type="checkbox"
+            checked={showResetAsRemainingTime}
+            onChange={(event) => setShowResetAsRemainingTime(event.currentTarget.checked)}
+          />
+        </label>
+        {!result?.ok && result?.fieldErrors.showResetAsRemainingTime ? (
+          <p className="field-error">{result.fieldErrors.showResetAsRemainingTime}</p>
         ) : null}
         {!result?.ok && result?.formError ? <p className="form-error">{result.formError}</p> : null}
         <footer>

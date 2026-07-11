@@ -6,12 +6,14 @@ export type WindowPosition = {
 export type OverlaySettings = {
   panelAlphaPercent: number;
   refreshIntervalSeconds: number;
+  showResetAsRemainingTime: boolean;
   windowPosition?: WindowPosition;
 };
 
 export type SettingsUpdateInput = {
   panelAlphaPercent: number;
   refreshIntervalSeconds: number;
+  showResetAsRemainingTime: boolean;
 };
 
 export type SettingsUpdateResult =
@@ -22,12 +24,14 @@ export type SettingsUpdateResult =
       fieldErrors: {
         panelAlphaPercent?: string;
         refreshIntervalSeconds?: string;
+        showResetAsRemainingTime?: string;
       };
     };
 
 export const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = {
   panelAlphaPercent: 50,
-  refreshIntervalSeconds: 30
+  refreshIntervalSeconds: 30,
+  showResetAsRemainingTime: false
 };
 
 export const OVERLAY_SETTINGS_LIMITS = {
@@ -43,6 +47,7 @@ export type SettingsUpdateValidation =
       fieldErrors: {
         panelAlphaPercent?: string;
         refreshIntervalSeconds?: string;
+        showResetAsRemainingTime?: string;
       };
     };
 
@@ -80,7 +85,7 @@ export function validateSettingsUpdateInput(value: unknown): SettingsUpdateValid
     return { ok: false, fieldErrors: {}, formError: "설정 값이 올바르지 않습니다." };
   }
 
-  const allowedKeys = new Set(["panelAlphaPercent", "refreshIntervalSeconds"]);
+  const allowedKeys = new Set(["panelAlphaPercent", "refreshIntervalSeconds", "showResetAsRemainingTime"]);
   if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
     return { ok: false, fieldErrors: {}, formError: "알 수 없는 설정 값이 있습니다." };
   }
@@ -111,6 +116,10 @@ export function validateSettingsUpdateInput(value: unknown): SettingsUpdateValid
     fieldErrors.refreshIntervalSeconds = "5-300 사이 정수여야 합니다.";
   }
 
+  if (typeof value.showResetAsRemainingTime !== "boolean") {
+    fieldErrors.showResetAsRemainingTime = "true 또는 false여야 합니다.";
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors };
   }
@@ -119,7 +128,8 @@ export function validateSettingsUpdateInput(value: unknown): SettingsUpdateValid
     ok: true,
     input: {
       panelAlphaPercent: value.panelAlphaPercent as number,
-      refreshIntervalSeconds: value.refreshIntervalSeconds as number
+      refreshIntervalSeconds: value.refreshIntervalSeconds as number,
+      showResetAsRemainingTime: value.showResetAsRemainingTime as boolean
     }
   };
 }
@@ -154,6 +164,12 @@ export function normalizeStoredSettings(value: unknown): NormalizedSettings {
     settings.refreshIntervalSeconds = value.refreshIntervalSeconds;
   } else if (Object.prototype.hasOwnProperty.call(value, "refreshIntervalSeconds")) {
     reasons.push("refreshIntervalSeconds normalized");
+  }
+
+  if (typeof value.showResetAsRemainingTime === "boolean") {
+    settings.showResetAsRemainingTime = value.showResetAsRemainingTime;
+  } else if (Object.prototype.hasOwnProperty.call(value, "showResetAsRemainingTime")) {
+    reasons.push("showResetAsRemainingTime normalized");
   }
 
   if (Object.prototype.hasOwnProperty.call(value, "windowPosition")) {

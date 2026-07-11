@@ -29,7 +29,14 @@ function installOverlayApi(options: {
 } = {}) {
   const unsubscribe = vi.fn();
   const settingsGet =
-    options.settingsGet ?? vi.fn(() => Promise.resolve({ panelAlphaPercent: 80, refreshIntervalSeconds: 10 }));
+    options.settingsGet ??
+    vi.fn(() =>
+      Promise.resolve({
+        panelAlphaPercent: 80,
+        refreshIntervalSeconds: 10,
+        showResetAsRemainingTime: false
+      })
+    );
   const getSnapshot = options.getSnapshot ?? vi.fn(() => Promise.resolve(response));
   const onChanged = options.onChanged ?? vi.fn(() => unsubscribe);
   window.codexOverlay = {
@@ -133,7 +140,11 @@ describe("OverlayApp", () => {
   });
 
   it("settings.changed payload를 받으면 settings.get 재호출 없이 alpha와 interval을 바꾼다", async () => {
-    let handler: (settings: { panelAlphaPercent: number; refreshIntervalSeconds: number }) => void = () => undefined;
+    let handler: (settings: {
+      panelAlphaPercent: number;
+      refreshIntervalSeconds: number;
+      showResetAsRemainingTime: boolean;
+    }) => void = () => undefined;
     const api = installOverlayApi({
       onChanged: vi.fn((nextHandler) => {
         handler = nextHandler;
@@ -143,16 +154,53 @@ describe("OverlayApp", () => {
     render(<OverlayApp />);
     await flushPromises();
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+
     act(() => {
-      handler({ panelAlphaPercent: 60, refreshIntervalSeconds: 6 });
+      handler({ panelAlphaPercent: 60, refreshIntervalSeconds: 6, showResetAsRemainingTime: false });
     });
 
     expect(api.settingsGet).toHaveBeenCalledTimes(1);
     expect(screen.getByText("CODEX USAGE").closest("main")?.style.getPropertyValue("--panel-alpha")).toBe("0.6");
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(6_000);
+      await vi.advanceTimersByTimeAsync(5_999);
+    });
+    expect(api.getSnapshot).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(api.getSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("상대 시간 설정은 추가 조회 없이 즉시 NEXT 형식을 사용한다", async () => {
+    vi.setSystemTime(new Date("2026-07-11T13:00:00.000Z"));
+    let handler: (settings: {
+      panelAlphaPercent: number;
+      refreshIntervalSeconds: number;
+      showResetAsRemainingTime: boolean;
+    }) => void = () => undefined;
+    const api = installOverlayApi({
+      onChanged: vi.fn((nextHandler) => {
+        handler = nextHandler;
+        return vi.fn();
+      })
+    });
+
+    render(<OverlayApp />);
+    await flushPromises();
+    const fiveHourRow = screen.getByRole("progressbar", { name: "5H LIMIT" }).closest(".limit-row");
+
+    expect(fiveHourRow?.textContent).toContain("RESET 7/11 23:30");
+
+    act(() => {
+      handler({ panelAlphaPercent: 60, refreshIntervalSeconds: 6, showResetAsRemainingTime: true });
+    });
+
+    expect(api.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(fiveHourRow?.textContent).toContain("NEXT 01:30");
   });
 
   it("unmount 후 interval과 settings listener를 정리하고 늦은 snapshot을 무시한다", async () => {

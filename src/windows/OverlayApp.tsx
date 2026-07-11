@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_OVERLAY_SETTINGS, type OverlaySettings } from "../../shared/overlaySettings";
-import { toUsageSnapshotViewModel, type UsageSnapshotViewModel } from "../../shared/usageSnapshot";
+import {
+  toUsageSnapshotViewModel,
+  type UsageSnapshotInput,
+  type UsageSnapshotViewModel
+} from "../../shared/usageSnapshot";
 import { getCodexOverlayApi } from "./windowApi";
 
 const pendingViewModel = toUsageSnapshotViewModel({ kind: "pending" });
@@ -11,7 +15,9 @@ function panelAlpha(settings: OverlaySettings): number {
 
 export function OverlayApp() {
   const [settings, setSettings] = useState<OverlaySettings>(DEFAULT_OVERLAY_SETTINGS);
+  const settingsRef = useRef<OverlaySettings>(DEFAULT_OVERLAY_SETTINGS);
   const [snapshot, setSnapshot] = useState<UsageSnapshotViewModel>(pendingViewModel);
+  const snapshotInputRef = useRef<UsageSnapshotInput>({ kind: "pending" });
   const intervalRef = useRef<number | null>(null);
   const inFlight = useRef(false);
   const mounted = useRef(false);
@@ -33,11 +39,32 @@ export function OverlayApp() {
     try {
       const response = await api.usage.getSnapshot();
       if (mounted.current) {
-        setSnapshot(toUsageSnapshotViewModel({ kind: "response", response }));
+        const input = { kind: "response" as const, response };
+        snapshotInputRef.current = input;
+        setSnapshot(
+          toUsageSnapshotViewModel(
+            input,
+            {
+              showResetAsRemainingTime: settingsRef.current.showResetAsRemainingTime,
+              now: new Date()
+            }
+          )
+        );
       }
     } catch {
       if (mounted.current) {
-        setSnapshot(toUsageSnapshotViewModel({ kind: "exception", caughtAt: new Date() }));
+        const caughtAt = new Date();
+        const input = { kind: "exception" as const, caughtAt };
+        snapshotInputRef.current = input;
+        setSnapshot(
+          toUsageSnapshotViewModel(
+            input,
+            {
+              showResetAsRemainingTime: settingsRef.current.showResetAsRemainingTime,
+              now: caughtAt
+            }
+          )
+        );
       }
     } finally {
       inFlight.current = false;
@@ -64,6 +91,7 @@ export function OverlayApp() {
         if (!mounted.current) {
           return;
         }
+        settingsRef.current = nextSettings;
         setSettings(nextSettings);
         startPolling(nextSettings.refreshIntervalSeconds);
       })
@@ -71,6 +99,7 @@ export function OverlayApp() {
         if (!mounted.current) {
           return;
         }
+        settingsRef.current = DEFAULT_OVERLAY_SETTINGS;
         setSettings(DEFAULT_OVERLAY_SETTINGS);
         startPolling(DEFAULT_OVERLAY_SETTINGS.refreshIntervalSeconds);
       });
@@ -81,7 +110,14 @@ export function OverlayApp() {
             if (!mounted.current) {
               return;
             }
+            settingsRef.current = nextSettings;
             setSettings(nextSettings);
+            setSnapshot(
+              toUsageSnapshotViewModel(snapshotInputRef.current, {
+                showResetAsRemainingTime: nextSettings.showResetAsRemainingTime,
+                now: new Date()
+              })
+            );
             startPolling(nextSettings.refreshIntervalSeconds);
           })
         : undefined;
@@ -115,7 +151,7 @@ export function OverlayApp() {
       <section className="limit-row">
         <div>
           <span className="limit-label">
-            5H LIMIT <span className="reset-time">(RESET {snapshot.fiveHourResetText})</span>
+            5H LIMIT <span className="reset-time">({snapshot.fiveHourResetText})</span>
           </span>
           <strong>{snapshot.fiveHourLimitText}</strong>
         </div>
@@ -124,7 +160,7 @@ export function OverlayApp() {
       <section className="limit-row">
         <div>
           <span className="limit-label">
-            1W LIMIT <span className="reset-time">(RESET {snapshot.oneWeekResetText})</span>
+            1W LIMIT <span className="reset-time">({snapshot.oneWeekResetText})</span>
           </span>
           <strong>{snapshot.oneWeekLimitText}</strong>
         </div>
