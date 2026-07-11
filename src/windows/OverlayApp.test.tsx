@@ -12,8 +12,8 @@ const response: DashboardResponse = {
       id: "codex",
       name: "Codex",
       planType: "pro",
-      primary: { label: "5h", usedPercent: 12, resetsAt: null, windowDurationMins: 300 },
-      secondary: { label: "1w", usedPercent: 3, resetsAt: null, windowDurationMins: 10080 }
+      primary: { label: "5h", usedPercent: 12, resetsAt: "2026-07-11T14:30:00.000Z", windowDurationMins: 300 },
+      secondary: { label: "1w", usedPercent: 3, resetsAt: "2026-07-18T03:05:00.000Z", windowDurationMins: 10080 }
     }
   ],
   sources: {
@@ -66,6 +66,20 @@ describe("OverlayApp", () => {
     await flushPromises();
     expect(screen.getByText("1,000")).toBeTruthy();
     expect(screen.getByText("CODEX USAGE").closest("main")?.style.getPropertyValue("--panel-alpha")).toBe("0.8");
+  });
+
+  it("5H와 1W limit 행에 로컬 reset 날짜와 시간을 표시한다", async () => {
+    installOverlayApi();
+
+    render(<OverlayApp />);
+    await flushPromises();
+
+    expect(screen.getByRole("progressbar", { name: "5H LIMIT" }).closest(".limit-row")?.textContent).toContain(
+      "5H LIMIT (RESET 7/11 23:30)"
+    );
+    expect(screen.getByRole("progressbar", { name: "1W LIMIT" }).closest(".limit-row")?.textContent).toContain(
+      "1W LIMIT (RESET 7/18 12:05)"
+    );
   });
 
   it("저장된 refreshIntervalSeconds가 첫 polling interval 생성에 사용된다", async () => {

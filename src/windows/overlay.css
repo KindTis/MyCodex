@@ -116,6 +116,19 @@ body {
   align-items: center;
 }
 
+.limit-row .limit-label {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.limit-row .reset-time {
+  color: rgba(244, 255, 247, 0.48);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .limit-row strong {
   font-size: 13px;
 }

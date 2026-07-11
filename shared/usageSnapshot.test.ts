@@ -29,10 +29,38 @@ describe("toUsageSnapshotViewModel", () => {
       todayCostText: "--",
       fiveHourLimitText: "--",
       fiveHourLimitFillPercent: 0,
+      fiveHourResetText: "--",
       oneWeekLimitText: "--",
       oneWeekLimitFillPercent: 0,
+      oneWeekResetText: "--",
       updatedAtText: "--:--:--"
     });
+  });
+
+  it("limit resetsAt은 로컬 M/D HH:mm 형식으로 반환한다", () => {
+    const fiveHourResetsAt = "2026-07-11T14:30:00.000Z";
+    const oneWeekResetsAt = "2026-07-18T03:05:00.000Z";
+    const response = {
+      ...baseResponse,
+      limits: [
+        {
+          ...baseResponse.limits[0],
+          primary: { ...baseResponse.limits[0].primary!, resetsAt: fiveHourResetsAt },
+          secondary: { ...baseResponse.limits[0].secondary!, resetsAt: oneWeekResetsAt }
+        }
+      ]
+    };
+
+    const model = toUsageSnapshotViewModel({ kind: "response", response });
+    expect(model.fiveHourResetText).toBe("7/11 23:30");
+    expect(model.oneWeekResetText).toBe("7/18 12:05");
+  });
+
+  it("limit resetsAt이 없으면 reset text를 placeholder로 반환한다", () => {
+    const model = toUsageSnapshotViewModel({ kind: "response", response: baseResponse });
+
+    expect(model.fiveHourResetText).toBe("--");
+    expect(model.oneWeekResetText).toBe("--");
   });
 
   it("두 source가 모두 성공인 response는 ok tone을 반환한다", () => {
@@ -79,7 +107,9 @@ describe("toUsageSnapshotViewModel", () => {
     expect(model.todayTokensText).toBe("123,456");
     expect(model.todayCostText).toBe("$0.0000");
     expect(model.fiveHourLimitText).toBe("--");
+    expect(model.fiveHourResetText).toBe("--");
     expect(model.oneWeekLimitText).toBe("--");
+    expect(model.oneWeekResetText).toBe("--");
   });
 
   it("100 초과 usedPercent는 text는 실제값, fill은 100으로 clamp한다", () => {
@@ -118,7 +148,9 @@ describe("toUsageSnapshotViewModel", () => {
       todayTokensText: "--",
       todayCostText: "--",
       fiveHourLimitText: "--",
+      fiveHourResetText: "--",
       oneWeekLimitText: "--",
+      oneWeekResetText: "--",
       updatedAtText: "01:02:03"
     });
   });

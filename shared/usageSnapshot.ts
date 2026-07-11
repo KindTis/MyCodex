@@ -11,13 +11,23 @@ export type UsageSnapshotViewModel = {
   todayCostText: string;
   fiveHourLimitText: string;
   fiveHourLimitFillPercent: number;
+  fiveHourResetText: string;
   oneWeekLimitText: string;
   oneWeekLimitFillPercent: number;
+  oneWeekResetText: string;
   updatedAtText: string;
 };
 
 const unavailable = "--";
 const pendingTime = "--:--:--";
+const resetTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Seoul",
+  month: "numeric",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23"
+});
 
 const unavailableModel = (statusTone: UsageSnapshotViewModel["statusTone"], updatedAtText: string) => ({
   statusTone,
@@ -25,8 +35,10 @@ const unavailableModel = (statusTone: UsageSnapshotViewModel["statusTone"], upda
   todayCostText: unavailable,
   fiveHourLimitText: unavailable,
   fiveHourLimitFillPercent: 0,
+  fiveHourResetText: unavailable,
   oneWeekLimitText: unavailable,
   oneWeekLimitFillPercent: 0,
+  oneWeekResetText: unavailable,
   updatedAtText
 });
 
@@ -60,6 +72,14 @@ function limitFill(window: LimitWindow | null | undefined): number {
   return Math.max(0, Math.min(100, window.usedPercent));
 }
 
+function resetText(window: LimitWindow | null | undefined): string {
+  if (!window?.resetsAt) {
+    return unavailable;
+  }
+
+  return resetTimeFormatter.format(new Date(window.resetsAt)).replace(",", "");
+}
+
 function codexBucket(response: DashboardResponse): LimitBucket | null {
   return response.sources.codexAppServer.ok ? response.limits.find((bucket) => bucket.id === "codex") ?? null : null;
 }
@@ -86,8 +106,10 @@ export function toUsageSnapshotViewModel(input: UsageSnapshotInput): UsageSnapsh
     todayCostText,
     fiveHourLimitText: limitText(bucket?.primary),
     fiveHourLimitFillPercent: limitFill(bucket?.primary),
+    fiveHourResetText: resetText(bucket?.primary),
     oneWeekLimitText: limitText(bucket?.secondary),
     oneWeekLimitFillPercent: limitFill(bucket?.secondary),
+    oneWeekResetText: resetText(bucket?.secondary),
     updatedAtText: formatTime(new Date(response.generatedAt))
   };
 }

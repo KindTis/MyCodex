@@ -114,14 +114,18 @@ export function OverlayApp() {
       </section>
       <section className="limit-row">
         <div>
-          <span>5H LIMIT</span>
+          <span className="limit-label">
+            5H LIMIT <span className="reset-time">(RESET {snapshot.fiveHourResetText})</span>
+          </span>
           <strong>{snapshot.fiveHourLimitText}</strong>
         </div>
         <progress max={100} value={snapshot.fiveHourLimitFillPercent} aria-label="5H LIMIT" />
       </section>
       <section className="limit-row">
         <div>
-          <span>1W LIMIT</span>
+          <span className="limit-label">
+            1W LIMIT <span className="reset-time">(RESET {snapshot.oneWeekResetText})</span>
+          </span>
           <strong>{snapshot.oneWeekLimitText}</strong>
         </div>
         <progress max={100} value={snapshot.oneWeekLimitFillPercent} aria-label="1W LIMIT" />
