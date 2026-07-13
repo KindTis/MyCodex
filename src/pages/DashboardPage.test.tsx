@@ -93,6 +93,28 @@ describe("DashboardPage", () => {
     expect(within(dashboardSummary).getByRole("button", { name: "새로고침" })).toBeTruthy();
   });
 
+  it("지원되지 않는 limit은 -로, 지원되는 limit은 사용률로 표시한다", async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          ...partialDashboard,
+          limits: [{ ...partialDashboard.limits[0], primary: null }]
+        })
+    } as Response);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => expect(screen.getByText("1주 limit")).toBeTruthy());
+    const fiveHourMeter = screen.getByText("5시간 limit").closest(".limit-meter");
+    const oneWeekMeter = screen.getByText("1주 limit").closest(".limit-meter");
+
+    expect(fiveHourMeter).not.toBeNull();
+    expect(oneWeekMeter).not.toBeNull();
+    expect(within(fiveHourMeter as HTMLElement).getByText("-")).toBeTruthy();
+    expect(within(oneWeekMeter as HTMLElement).getByText("3.0%")).toBeTruthy();
+  });
+
   it("Line/Area 추이에서 토큰과 비용을 함께 표시하고 이전 7일을 조회한다", async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,

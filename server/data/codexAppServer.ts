@@ -55,33 +55,37 @@ function collectBuckets(record: Record<string, unknown>): RawLimitBucket[] {
   return [...buckets.values()];
 }
 
-function expectedDurationMins(label: "5h" | "1w"): number {
-  return label === "5h" ? 300 : 10_080;
+function windowLabel(windowDurationMins: number): LimitWindow["label"] | null {
+  if (windowDurationMins === 300) {
+    return "5h";
+  }
+  if (windowDurationMins === 10_080) {
+    return "1w";
+  }
+  return null;
 }
 
-function parseWindow(value: unknown, label: "5h" | "1w", strict: boolean): LimitWindow | null {
+function parseWindow(value: unknown, strict: boolean): LimitWindow | null {
   if (!value || typeof value !== "object") {
-    if (strict) {
-      throw new Error(`${label} limit window를 찾지 못했습니다.`);
-    }
     return null;
   }
 
   const record = value as RawLimitWindow;
+  const windowDurationMins =
+    typeof record.windowDurationMins === "number" && Number.isFinite(record.windowDurationMins)
+      ? record.windowDurationMins
+      : null;
+  const label = windowDurationMins === null ? null : windowLabel(windowDurationMins);
+  if (!label) {
+    return null;
+  }
+
   const usedPercent = record.usedPercent;
   if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent) || usedPercent < 0) {
     if (strict) {
       throw new Error(`${label} limit usedPercent가 올바르지 않습니다.`);
     }
     return null;
-  }
-
-  const windowDurationMins =
-    typeof record.windowDurationMins === "number" && Number.isFinite(record.windowDurationMins)
-      ? record.windowDurationMins
-      : null;
-  if (strict && windowDurationMins !== expectedDurationMins(label)) {
-    throw new Error(`${label} limit windowDurationMins가 올바르지 않습니다.`);
   }
 
   return {
@@ -100,12 +104,14 @@ function toLimitBucket(bucket: RawLimitBucket, strict: boolean): LimitBucket {
     throw new Error("limit bucket id를 찾지 못했습니다.");
   }
 
+  const windows = [parseWindow(bucket.primary, strict), parseWindow(bucket.secondary, strict)];
+
   return {
     id,
     name: id === "codex" ? "Codex" : id,
     planType: typeof bucket.planType === "string" ? bucket.planType : null,
-    primary: parseWindow(bucket.primary, "5h", strict),
-    secondary: parseWindow(bucket.secondary, "1w", strict)
+    primary: windows.find((window) => window?.label === "5h") ?? null,
+    secondary: windows.find((window) => window?.label === "1w") ?? null
   };
 }
 

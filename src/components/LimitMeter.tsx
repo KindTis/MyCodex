@@ -3,17 +3,18 @@ import type { LimitWindow } from "../api";
 type LimitMeterProps = {
   title: string;
   window: LimitWindow | null;
+  unavailableText?: string;
 };
 
 const formatTime = (value: string | null) => (value ? new Date(value).toLocaleString() : "알 수 없음");
 
-export function LimitMeter({ title, window }: LimitMeterProps) {
+export function LimitMeter({ title, window, unavailableText = "-" }: LimitMeterProps) {
   if (!window) {
     return (
       <div className="limit-meter is-unavailable">
         <div className="meter-heading">
           <span>{title}</span>
-          <strong>사용 불가</strong>
+          <strong>{unavailableText}</strong>
         </div>
         <div className="meter-track" />
       </div>

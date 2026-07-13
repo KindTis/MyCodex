@@ -192,6 +192,32 @@ describe("toUsageSnapshotViewModel", () => {
     expect(model.oneWeekResetText).toBe("RESET --");
   });
 
+  it("1주 limit만 지원되면 5시간은 -로, 1주는 기존 값으로 표시한다", () => {
+    const response: DashboardResponse = {
+      ...baseResponse,
+      limits: [{ ...baseResponse.limits[0], primary: null }]
+    };
+
+    const model = toUsageSnapshotViewModel({ kind: "response", response });
+
+    expect(model.fiveHourLimitText).toBe("-");
+    expect(model.fiveHourResetText).toBe("RESET -");
+    expect(model.oneWeekLimitText).toBe("18%");
+  });
+
+  it("5시간 limit만 지원되면 5시간은 기존 값으로, 1주는 -로 표시한다", () => {
+    const response: DashboardResponse = {
+      ...baseResponse,
+      limits: [{ ...baseResponse.limits[0], secondary: null }]
+    };
+
+    const model = toUsageSnapshotViewModel({ kind: "response", response });
+
+    expect(model.fiveHourLimitText).toBe("42%");
+    expect(model.oneWeekLimitText).toBe("-");
+    expect(model.oneWeekResetText).toBe("RESET -");
+  });
+
   it("100 초과 usedPercent는 text는 실제값, fill은 100으로 clamp한다", () => {
     const response = {
       ...baseResponse,

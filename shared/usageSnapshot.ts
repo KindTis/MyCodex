@@ -24,6 +24,7 @@ export type UsageSnapshotViewModel = {
 };
 
 const unavailable = "--";
+const unsupported = "-";
 const pendingTime = "--:--:--";
 const resetTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Seoul",
@@ -69,8 +70,11 @@ function formatCost(value: number): string {
   return `$${value.toFixed(4)}`;
 }
 
-function limitText(window: LimitWindow | null | undefined): string {
-  if (!window || typeof window.usedPercent !== "number" || !Number.isFinite(window.usedPercent)) {
+function limitText(window: LimitWindow | null | undefined, missingWindowText: string): string {
+  if (!window) {
+    return missingWindowText;
+  }
+  if (typeof window.usedPercent !== "number" || !Number.isFinite(window.usedPercent)) {
     return unavailable;
   }
 
@@ -106,10 +110,14 @@ function resetText(
   window: LimitWindow | null | undefined,
   label: LimitWindow["label"],
   showResetAsRemainingTime: boolean,
-  now: Date
+  now: Date,
+  missingWindowText: string
 ): string {
   const prefix = resetPrefix(showResetAsRemainingTime);
-  if (!window?.resetsAt) {
+  if (!window) {
+    return `${prefix} ${missingWindowText}`;
+  }
+  if (!window.resetsAt) {
     return `${prefix} ${unavailable}`;
   }
 
@@ -151,17 +159,18 @@ export function toUsageSnapshotViewModel(
     response.sources.ccusage.ok && response.today ? formatTokens(response.today.tokens) : unavailable;
   const todayCostText = response.sources.ccusage.ok && response.today ? formatCost(response.today.costUsd) : unavailable;
   const bucket = codexBucket(response);
+  const missingWindowText = response.sources.codexAppServer.ok ? unsupported : unavailable;
 
   return {
     statusTone,
     todayTokensText,
     todayCostText,
-    fiveHourLimitText: limitText(bucket?.primary),
+    fiveHourLimitText: limitText(bucket?.primary, missingWindowText),
     fiveHourLimitFillPercent: limitFill(bucket?.primary),
-    fiveHourResetText: resetText(bucket?.primary, "5h", showResetAsRemainingTime, now),
-    oneWeekLimitText: limitText(bucket?.secondary),
+    fiveHourResetText: resetText(bucket?.primary, "5h", showResetAsRemainingTime, now, missingWindowText),
+    oneWeekLimitText: limitText(bucket?.secondary, missingWindowText),
     oneWeekLimitFillPercent: limitFill(bucket?.secondary),
-    oneWeekResetText: resetText(bucket?.secondary, "1w", showResetAsRemainingTime, now),
+    oneWeekResetText: resetText(bucket?.secondary, "1w", showResetAsRemainingTime, now, missingWindowText),
     updatedAtText: formatTime(new Date(response.generatedAt))
   };
 }

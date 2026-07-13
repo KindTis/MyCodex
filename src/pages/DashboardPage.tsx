@@ -135,8 +135,16 @@ export function DashboardPage() {
               {limitsUnavailable ? <p className="error-text">Codex App Server 값을 사용할 수 없습니다.</p> : null}
             </div>
             <div className="limit-grid">
-              <LimitMeter title="5시간 limit" window={codexBucket?.primary ?? null} />
-              <LimitMeter title="1주 limit" window={codexBucket?.secondary ?? null} />
+              <LimitMeter
+                title="5시간 limit"
+                window={codexBucket?.primary ?? null}
+                unavailableText={limitsUnavailable ? "사용 불가" : "-"}
+              />
+              <LimitMeter
+                title="1주 limit"
+                window={codexBucket?.secondary ?? null}
+                unavailableText={limitsUnavailable ? "사용 불가" : "-"}
+              />
             </div>
             {extraBuckets.length ? (
               <div className="extra-limits">

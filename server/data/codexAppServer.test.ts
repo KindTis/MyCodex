@@ -59,45 +59,53 @@ describe("parseCodexRateLimits", () => {
     ).toThrow("usedPercent");
   });
 
-  it("대표 bucket의 duration 불일치를 실패로 처리한다", () => {
-    expect(() =>
-      parseCodexRateLimits({
-        rateLimits: {
-          limitId: "codex",
-          primary: { usedPercent: 1, windowDurationMins: 301 },
-          secondary: { usedPercent: 1, windowDurationMins: 10080 }
-        }
-      })
-    ).toThrow("windowDurationMins");
-    expect(() =>
-      parseCodexRateLimits({
-        rateLimits: {
-          limitId: "codex",
-          primary: { usedPercent: 1, windowDurationMins: 300 },
-          secondary: { usedPercent: 1, windowDurationMins: 10081 }
-        }
-      })
-    ).toThrow("windowDurationMins");
+  it("1주 window만 primary로 제공되면 1주 limit으로 매핑한다", () => {
+    const report = parseCodexRateLimits({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 18, windowDurationMins: 10080, resetsAt: 1782965539 },
+        secondary: null
+      }
+    });
+
+    expect(report.limits[0].primary).toBeNull();
+    expect(report.limits[0].secondary).toMatchObject({
+      label: "1w",
+      usedPercent: 18,
+      windowDurationMins: 10080
+    });
+    expect(report.summary.primaryWindowDurationMins).toBeNull();
+    expect(report.summary.secondaryWindowDurationMins).toBe(10080);
   });
 
-  it("대표 bucket의 primary 또는 secondary가 없으면 실패로 처리한다", () => {
-    expect(() =>
-      parseCodexRateLimits({
-        rateLimits: {
-          limitId: "codex",
-          primary: null,
-          secondary: { usedPercent: 1, windowDurationMins: 10080 }
-        }
-      })
-    ).toThrow("5h limit window");
-    expect(() =>
-      parseCodexRateLimits({
-        rateLimits: {
-          limitId: "codex",
-          primary: { usedPercent: 1, windowDurationMins: 300 }
-        }
-      })
-    ).toThrow("1w limit window");
+  it("5시간 window만 secondary로 제공되어도 5시간 limit으로 매핑한다", () => {
+    const report = parseCodexRateLimits({
+      rateLimits: {
+        limitId: "codex",
+        primary: null,
+        secondary: { usedPercent: 7, windowDurationMins: 300 }
+      }
+    });
+
+    expect(report.limits[0].primary).toMatchObject({
+      label: "5h",
+      usedPercent: 7,
+      windowDurationMins: 300
+    });
+    expect(report.limits[0].secondary).toBeNull();
+  });
+
+  it("지원하지 않는 duration은 해당 limit이 없는 것으로 처리한다", () => {
+    const report = parseCodexRateLimits({
+      rateLimits: {
+        limitId: "codex",
+        primary: { usedPercent: 1, windowDurationMins: 15 },
+        secondary: null
+      }
+    });
+
+    expect(report.limits[0].primary).toBeNull();
+    expect(report.limits[0].secondary).toBeNull();
   });
 
   it("첫 bucket이 chatgpt여도 codex bucket만 대표로 사용한다", () => {
