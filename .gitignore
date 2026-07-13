@@ -5,3 +5,9 @@ release/
 docs/implementation/
 docs/myloop/
 docs/superpowers/
+
+# Local Codex hook configuration contains machine-specific paths.
+/.codex/hooks.json
+
+# Graphify outputs can be regenerated as needed.
+/graphify-out/
